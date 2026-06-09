@@ -11,21 +11,38 @@ topology:
       kind: linux
       image: alpine:latest
       mgmt-ipv4: 172.20.20.101
+      exec:
+        - apk add --no-cache lldpd
+        - lldpd
 
     switch:
       kind: linux
       image: debian:bookworm-slim
       mgmt-ipv4: 172.20.20.102
+      exec:
+        - apt-get update
+        - apt-get install -y lldpd
+        - lldpd &        
 
     database:
       kind: linux
       image: postgres:16-alpine
       mgmt-ipv4: 172.20.20.103
+      env:
+        POSTGRES_USER: admin
+        POSTGRES_PASSWORD: SecretPassword123
+        POSTGRES_DB: cyber_audit
+      exec:
+        - apk add --no-cache lldpd
+        - lldpd        
 
     webserver:
       kind: linux
       image: nginx:alpine
       mgmt-ipv4: 172.20.20.104
+      exec:
+        - apk add --no-cache lldpd
+        - lldpd
 
     fileserver:
       kind: linux
