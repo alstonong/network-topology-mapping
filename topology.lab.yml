@@ -1,0 +1,46 @@
+name: cyberlab
+
+topology:
+  nodes:
+    firewall:
+      kind: linux
+      image: alpine:latest
+      mgmt-ipv4: 172.20.20.100 
+
+    router:
+      kind: linux
+      image: alpine:latest
+      mgmt-ipv4: 172.20.20.101
+
+    switch:
+      kind: linux
+      image: debian:bookworm-slim
+      mgmt-ipv4: 172.20.20.102
+
+    database:
+      kind: linux
+      image: postgres:16-alpine
+      mgmt-ipv4: 172.20.20.103
+
+    webserver:
+      kind: linux
+      image: nginx:alpine
+      mgmt-ipv4: 172.20.20.104
+
+    fileserver:
+      kind: linux
+      image: debian:bookworm-slim
+      mgmt-ipv4: 172.20.20.105
+
+    win-emu-client:
+      kind: linux
+      image: debian:bookworm
+      mgmt-ipv4: 172.20.20.106
+
+  links:
+    - endpoints: ["firewall:eth1", "router:eth1"]
+    - endpoints: ["router:eth2", "switch:eth1"]
+    - endpoints: ["switch:eth2", "webserver:eth1"]
+    - endpoints: ["switch:eth3", "fileserver:eth1"]
+    - endpoints: ["switch:eth4", "win-emu-client:eth1"]
+    - endpoints: ["switch:eth5", "database:eth1"]
