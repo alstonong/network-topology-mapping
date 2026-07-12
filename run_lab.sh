@@ -63,7 +63,7 @@ assign_ip win-b2 192.168.20.13 192.168.20.1
 assign_ip file-server-b 192.168.20.20 192.168.20.1
 assign_ip db-server 192.168.20.21 192.168.20.1
 
-echo "Starting simulated services (opening ports)..."
+echo "Starting simulated services..."
 
 # Linux Clients: Start SSH (Port 22)
 for node in linux-a1 linux-a2 linux-b1 linux-b2; do
@@ -83,5 +83,13 @@ docker exec clab-homelab-file-server-b sh -c "echo '[global]' > /etc/samba/smb.c
 docker exec -d clab-homelab-file-server-b smbd -D
 docker exec -d clab-homelab-file-server-b vsftpd
 
-echo "Lab deployment complete."
+# Start LLDP 
+echo "Starting LLDP daemon on all devices..."
+ALL_NODES="firewall router-a router-b switch-a switch-b linux-a1 linux-a2 win-a1 win-a2 web-server-a linux-b1 linux-b2 win-b1 win-b2 file-server-b db-server"
+for node in $ALL_NODES; do
+    docker exec -d clab-homelab-$node lldpd
+done
 
+echo "Lab deployment complete."
+sleep 5 
+echo "Ready!"
