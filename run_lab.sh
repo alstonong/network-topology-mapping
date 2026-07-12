@@ -87,7 +87,7 @@ docker exec -d clab-homelab-file-server-b vsftpd
 echo "Starting LLDP daemon on all devices..."
 ALL_NODES="firewall router-a router-b switch-a switch-b linux-a1 linux-a2 win-a1 win-a2 web-server-a linux-b1 linux-b2 win-b1 win-b2 file-server-b db-server"
 for node in $ALL_NODES; do
-    docker exec -d clab-homelab-$node lldpd
+    docker exec -d clab-homelab-$node lldpd -I 'eth[1-9]*'
 done
 
 echo "Lab deployment complete."
