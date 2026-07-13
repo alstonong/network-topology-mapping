@@ -189,7 +189,7 @@ const networkDataString = JSON.stringify({ nodes: visNodes, edges: visEdges }, n
 const htmlFileContent = `<!DOCTYPE html>
 <html>
 <head>
-    <title>Autonomous Enterprise Topology</title>
+    <title>Autonomous Network Topology</title>
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
     <style>
         body { font-family: sans-serif; background-color: #1e1e1e; color: white; text-align: center; margin: 0; padding: 20px; }
@@ -197,7 +197,7 @@ const htmlFileContent = `<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <h2>Autonomous Enterprise Topology (Fully Correlated L2/L3)</h2>
+    <h2>Autonomous Network Topology</h2>
     <p>Last scanned: ${new Date().toLocaleString()}</p>
     <div id="mynetwork"></div>
 
