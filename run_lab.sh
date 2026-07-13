@@ -20,6 +20,11 @@ for sw in switch-a switch-b; do
 done
 docker exec clab-homelab-switch-b ip link set eth7 master br0
 
+for sw in switch-a switch-b; do
+    docker exec clab-homelab-$sw sh -c "echo 0 > /sys/class/net/br0/bridge/group_fwd_mask"
+    docker exec clab-homelab-$sw brctl stp br0 off
+done
+
 # Setup Gateway/Firewall
 echo "Configuring firewall and routing..."
 docker exec clab-homelab-firewall ip addr add 10.0.0.1/30 dev eth1
@@ -87,7 +92,9 @@ docker exec -d clab-homelab-file-server-b vsftpd
 echo "Starting LLDP daemon on all devices..."
 ALL_NODES="firewall router-a router-b switch-a switch-b linux-a1 linux-a2 win-a1 win-a2 web-server-a linux-b1 linux-b2 win-b1 win-b2 file-server-b db-server"
 for node in $ALL_NODES; do
-    docker exec -d clab-homelab-$node lldpd -I 'eth[1-9]*'
+    if [[ "$node" != win-* ]]; then
+        docker exec -d clab-homelab-$node lldpd -I 'eth[1-9]*'
+    fi
 done
 
 echo "Lab deployment complete."
