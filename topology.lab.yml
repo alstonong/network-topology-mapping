@@ -3,45 +3,63 @@ prefix: clab
 
 topology:
   nodes:
+    # --- INFRASTRUCTURE ---
     firewall: { kind: linux, image: alpine:latest, exec: ["apk add iptables iproute2 lldpd"] }
     router-a: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 lldpd"] }
     router-b: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 lldpd"] }
     
-    switch-a: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 bridge-utils lldpd"] }
-    switch-b: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 bridge-utils lldpd"] }
+    switch-a-users: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 bridge-utils lldpd"] }
+    switch-a-dmz: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 bridge-utils lldpd"] }
+    switch-b-users: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 bridge-utils lldpd"] }
+    switch-b-servers: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 bridge-utils lldpd"] }
 
-    # Subnet A (192.168.10.0/24)
-    linux-a1: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 nmap nmap-scripts tcpdump openssh lldpd traceroute"] }
-    linux-a2: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 openssh lldpd"] }
-    win-a1: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 samba socat lldpd"] }
-    win-a2: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 samba socat lldpd"] }
-    web-server-a: { kind: linux, image: nginx:alpine, exec: ["apk add iproute2 lldpd"] }
+    # --- SUBNET A: USERS (192.168.10.0/24) ---
+    linux-a1: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 nmap nmap-scripts tcpdump openssh arp-scan"] }
+    linux-a2: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 openssh"] }
+    win-a1: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 samba socat"] }
+    win-a2: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 samba socat"] }
+    
+    # --- SUBNET A: DMZ (192.168.11.0/24) ---
+    web-server-a: { kind: linux, image: nginx:alpine, exec: ["apk add iproute2"] }
 
-    # Subnet B (192.168.20.0/24)
-    linux-b1: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 nmap nmap-scripts tcpdump openssh lldpd traceroute"] }
-    linux-b2: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 openssh lldpd"] }
-    win-b1: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 samba socat lldpd"] }
-    win-b2: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 samba socat lldpd"] }
-    file-server-b: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 samba vsftpd lldpd"] }
-    db-server: { kind: linux, image: postgres:alpine, env: { POSTGRES_PASSWORD: "admin" }, exec: ["apk add iproute2 lldpd"] }
+    # --- SUBNET B: USERS (192.168.20.0/24) ---
+    linux-b1: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 nmap nmap-scripts tcpdump openssh arp-scan"] }
+    linux-b2: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 openssh"] }
+    win-b1: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 samba socat"] }
+    win-b2: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 samba socat"] }
+    
+    # --- SUBNET B: SERVERS (192.168.21.0/24) ---
+    file-server-b: { kind: linux, image: alpine:latest, exec: ["apk add iproute2 samba vsftpd"] }
+    db-server: { kind: linux, image: postgres:alpine, env: { POSTGRES_PASSWORD: "admin" }, exec: ["apk add iproute2"] }
 
   links:
+    # Core Routing Links
     - endpoints: ["firewall:eth1", "router-a:eth1"]
     - endpoints: ["firewall:eth2", "router-b:eth1"]
-    - endpoints: ["router-a:eth2", "switch-a:eth1"]
-    - endpoints: ["router-b:eth2", "switch-b:eth1"]
     
-    # Subnet A Links
-    - endpoints: ["switch-a:eth2", "linux-a1:eth1"]
-    - endpoints: ["switch-a:eth3", "linux-a2:eth1"]
-    - endpoints: ["switch-a:eth4", "win-a1:eth1"]
-    - endpoints: ["switch-a:eth5", "win-a2:eth1"]
-    - endpoints: ["switch-a:eth6", "web-server-a:eth1"]
+    # Subnet A Distribution
+    - endpoints: ["router-a:eth2", "switch-a-users:eth1"]
+    - endpoints: ["router-a:eth3", "switch-a-dmz:eth1"]
     
-    # Subnet B Links
-    - endpoints: ["switch-b:eth2", "linux-b1:eth1"]
-    - endpoints: ["switch-b:eth3", "linux-b2:eth1"]
-    - endpoints: ["switch-b:eth4", "win-b1:eth1"]
-    - endpoints: ["switch-b:eth5", "win-b2:eth1"]
-    - endpoints: ["switch-b:eth6", "file-server-b:eth1"]
-    - endpoints: ["switch-b:eth7", "db-server:eth1"]
+    # Subnet B Distribution
+    - endpoints: ["router-b:eth2", "switch-b-users:eth1"]
+    - endpoints: ["router-b:eth3", "switch-b-servers:eth1"]
+    
+    # Subnet A: User Access Links
+    - endpoints: ["switch-a-users:eth2", "linux-a1:eth1"]
+    - endpoints: ["switch-a-users:eth3", "linux-a2:eth1"]
+    - endpoints: ["switch-a-users:eth4", "win-a1:eth1"]
+    - endpoints: ["switch-a-users:eth5", "win-a2:eth1"]
+    
+    # Subnet A: DMZ Links
+    - endpoints: ["switch-a-dmz:eth2", "web-server-a:eth1"]
+    
+    # Subnet B: User Access Links
+    - endpoints: ["switch-b-users:eth2", "linux-b1:eth1"]
+    - endpoints: ["switch-b-users:eth3", "linux-b2:eth1"]
+    - endpoints: ["switch-b-users:eth4", "win-b1:eth1"]
+    - endpoints: ["switch-b-users:eth5", "win-b2:eth1"]
+    
+    # Subnet B: Server Access Links
+    - endpoints: ["switch-b-servers:eth2", "file-server-b:eth1"]
+    - endpoints: ["switch-b-servers:eth3", "db-server:eth1"]
