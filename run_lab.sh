@@ -8,19 +8,18 @@ sudo containerlab deploy --topo topology.lab.yml
 sleep 2
 
 echo "Configuring switches..."
-for sw in switch-a switch-b; do
+for sw in switch-a-users switch-a-dmz switch-b-users switch-b-servers; do
     docker exec clab-homelab-$sw brctl addbr br0
     docker exec clab-homelab-$sw ip link set br0 up
-    docker exec clab-homelab-$sw ip link set eth1 master br0
-    docker exec clab-homelab-$sw ip link set eth2 master br0
-    docker exec clab-homelab-$sw ip link set eth3 master br0
-    docker exec clab-homelab-$sw ip link set eth4 master br0
-    docker exec clab-homelab-$sw ip link set eth5 master br0
-    docker exec clab-homelab-$sw ip link set eth6 master br0
-done
-docker exec clab-homelab-switch-b ip link set eth7 master br0
-
-for sw in switch-a switch-b; do
+    
+    # Map interfaces based on switch role
+    if [[ "$sw" == *"users"* ]]; then
+        for i in {1..5}; do docker exec clab-homelab-$sw ip link set eth$i master br0; done
+    else
+        # Server/DMZ switches have fewer links
+        for i in {1..3}; do docker exec clab-homelab-$sw ip link set eth$i master br0; done
+    fi
+    
     docker exec clab-homelab-$sw sh -c "echo 0 > /sys/class/net/br0/bridge/group_fwd_mask"
     docker exec clab-homelab-$sw brctl stp br0 off
 done
@@ -30,18 +29,26 @@ echo "Configuring firewall and routing..."
 docker exec clab-homelab-firewall ip addr add 10.0.0.1/30 dev eth1
 docker exec clab-homelab-firewall ip addr add 10.0.0.5/30 dev eth2
 docker exec clab-homelab-firewall sysctl -w net.ipv4.ip_forward=1
+docker exec clab-homelab-firewall iptables -A FORWARD -i eth1 -o eth2 -j REJECT
+docker exec clab-homelab-firewall iptables -A FORWARD -i eth2 -o eth1 -j REJECT
 
+# Add routes for both user subnets and server subnets
 docker exec clab-homelab-firewall ip route add 192.168.10.0/24 via 10.0.0.2
+docker exec clab-homelab-firewall ip route add 192.168.11.0/24 via 10.0.0.2
 docker exec clab-homelab-firewall ip route add 192.168.20.0/24 via 10.0.0.6
+docker exec clab-homelab-firewall ip route add 192.168.21.0/24 via 10.0.0.6
 
-# Setup Routers
+# Setup Router A (Users + DMZ)
 docker exec clab-homelab-router-a ip addr add 10.0.0.2/30 dev eth1
 docker exec clab-homelab-router-a ip addr add 192.168.10.1/24 dev eth2
+docker exec clab-homelab-router-a ip addr add 192.168.11.1/24 dev eth3
 docker exec clab-homelab-router-a ip route replace default via 10.0.0.1 dev eth1
 docker exec clab-homelab-router-a sysctl -w net.ipv4.ip_forward=1
 
+# Setup Router B (Users + Servers)
 docker exec clab-homelab-router-b ip addr add 10.0.0.6/30 dev eth1
 docker exec clab-homelab-router-b ip addr add 192.168.20.1/24 dev eth2
+docker exec clab-homelab-router-b ip addr add 192.168.21.1/24 dev eth3
 docker exec clab-homelab-router-b ip route replace default via 10.0.0.5 dev eth1
 docker exec clab-homelab-router-b sysctl -w net.ipv4.ip_forward=1
 
@@ -51,22 +58,20 @@ assign_ip() {
     docker exec clab-homelab-$1 ip route replace default via $3 dev eth1
 }
 
-# Assign Subnet A
-echo "Assigning IPs to Subnet A..."
+echo "Assigning IPs to Branch A..."
 assign_ip linux-a1 192.168.10.10 192.168.10.1
 assign_ip linux-a2 192.168.10.11 192.168.10.1
 assign_ip win-a1 192.168.10.12 192.168.10.1
 assign_ip win-a2 192.168.10.13 192.168.10.1
-assign_ip web-server-a 192.168.10.20 192.168.10.1
+assign_ip web-server-a 192.168.11.20 192.168.11.1
 
-# Assign Subnet B
-echo "Assigning IPs to Subnet B..."
+echo "Assigning IPs to Branch B..."
 assign_ip linux-b1 192.168.20.10 192.168.20.1
 assign_ip linux-b2 192.168.20.11 192.168.20.1
 assign_ip win-b1 192.168.20.12 192.168.20.1
 assign_ip win-b2 192.168.20.13 192.168.20.1
-assign_ip file-server-b 192.168.20.20 192.168.20.1
-assign_ip db-server 192.168.20.21 192.168.20.1
+assign_ip file-server-b 192.168.21.20 192.168.21.1
+assign_ip db-server 192.168.21.21 192.168.21.1
 
 echo "Starting simulated services..."
 
@@ -83,18 +88,16 @@ for node in win-a1 win-a2 win-b1 win-b2; do
     docker exec -d clab-homelab-$node socat TCP4-LISTEN:3389,fork,reuseaddr /dev/null
 done
 
-# File Server: Start FTP (21) and SMB (139/445)
+# Servers: Start FTP (21) and SMB (139/445)
 docker exec clab-homelab-file-server-b sh -c "echo '[global]' > /etc/samba/smb.conf"
 docker exec -d clab-homelab-file-server-b smbd -D
 docker exec -d clab-homelab-file-server-b vsftpd
 
-# Start LLDP 
-echo "Starting LLDP daemon on all devices..."
-ALL_NODES="firewall router-a router-b switch-a switch-b linux-a1 linux-a2 win-a1 win-a2 web-server-a linux-b1 linux-b2 win-b1 win-b2 file-server-b db-server"
-for node in $ALL_NODES; do
-    if [[ "$node" != win-* ]]; then
-        docker exec -d clab-homelab-$node lldpd -I 'eth[1-9]*'
-    fi
+# Start LLDP ONLY on infrastructure devices
+echo "Starting LLDP daemon on infrastructure devices..."
+INFRA_NODES="firewall router-a router-b switch-a-users switch-a-dmz switch-b-users switch-b-servers"
+for node in $INFRA_NODES; do
+    docker exec -d clab-homelab-$node lldpd -I 'eth[1-9]*'
 done
 
 echo "Lab deployment complete."
